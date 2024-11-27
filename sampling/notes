@@ -1,0 +1,229 @@
+import numpy as np
+import pandas as pd
+from sklearn.cluster import KMeans
+from typing import List, Dict, Tuple
+import matplotlib.pyplot as plt
+
+class DeliveryScenario:
+    def __init__(self,
+                 grid_size: Tuple[float, float] = (5, 5),  # km
+                 cell_side: float = 0.174,  # km (hexagon side length)
+                 time_window: Tuple[int, int] = (0, 8),  # hours
+                 time_interval: float = 1.0,  # hour
+                 response_window: float = 0.5,  # hour
+                 expected_load: float = 0.5,  # kg
+                 load_std: float = 0.1,  # kg
+                 demand_rate: Tuple[float, float] = (0.1, 0.5),  # demands/hour
+                 candidate_cs: int = 20,
+                 warehouses: int = 4):
+
+        self.grid_size = grid_size
+        self.cell_side = cell_side
+        self.time_window = time_window
+        self.time_interval = time_interval
+        self.response_window = response_window
+        self.expected_load = expected_load
+        self.load_std = load_std
+        self.demand_rate = demand_rate
+
+        # Generate hexagonal grid centers
+        self.grid_centers = self._generate_hex_grid()
+
+        # Generate CS and warehouse locations
+        self.cs_locations = self._generate_random_locations(candidate_cs)
+        self.warehouse_locations = self._generate_random_locations(warehouses)
+
+    def _generate_hex_grid(self) -> List[Tuple[float, float]]:
+        """Generate centers of hexagonal grid cells"""
+        centers = []
+        h = self.cell_side * np.sqrt(3)
+        w = self.cell_side * 2
+
+        for row in range(int(self.grid_size[0] / h)):
+            for col in range(int(self.grid_size[1] / w)):
+                x = col * w + (row % 2) * w/2
+                y = row * h
+                if x < self.grid_size[0] and y < self.grid_size[1]:
+                    centers.append((x, y))
+
+        return centers
+
+    def _generate_random_locations(self, n: int) -> List[Tuple[float, float]]:
+        """Generate random locations within grid"""
+        locations = []
+        for _ in range(n):
+            x = np.random.uniform(0, self.grid_size[0])
+            y = np.random.uniform(0, self.grid_size[1])
+            locations.append((x, y))
+        return locations
+
+    def _calculate_distance(self, p1: Tuple[float, float], p2: Tuple[float, float]) -> float:
+        """Calculate Euclidean distance between two points"""
+        return np.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
+
+    def generate_scenario(self) -> Dict:
+        """Generate single scenario with delivery demands"""
+        demands = []
+        demand_count = 0
+
+        # For each grid cell
+        for cell_center in self.grid_centers:
+            # Random demand rate for this cell
+            cell_rate = np.random.uniform(*self.demand_rate)
+
+            # For each time interval
+            time = self.+[0]
+            while time < self.time_window[1]:
+                # Check if demand occurs (Poisson process)
+                if np.random.random() < cell_rate * self.time_interval:
+                    # Generate demand
+                    demand = {
+                        'id': demand_count,
+                        'location': cell_center,
+                        't_lb': time,
+                        't_ub': time + self.response_window,
+                        'mass': min(max(np.random.normal(
+                            self.expected_load, self.load_std), 0.1), 5.0)
+                    }
+                    demands.append(demand)
+                    demand_count += 1
+
+                time += self.time_interval
+
+        # Calculate scenario features
+        features = self._calculate_scenario_features(demands)
+
+        return {
+            'demands': demands,
+            'features': features
+        }
+
+    def _calculate_scenario_features(self, demands: List[Dict]) -> List[float]:
+        """Calculate feature vector for scenario clustering"""
+        if not demands:
+            return [0, 0, 0, 0, 0]
+
+        # Task volume (Γ) - weighted sum of demands considering distance to nearest CS
+        task_volume = 0
+        mean_distance = 0
+        for demand in demands:
+            # Find nearest CS
+            min_dist = min(self._calculate_distance(demand['location'], cs_loc)
+                         for cs_loc in self.cs_locations)
+            task_volume += min_dist
+            mean_distance += min_dist
+
+        mean_distance /= len(demands)
+
+        # Calculate time-related features
+        times = [d['t_lb'] for d in demands]
+
+        return [
+            task_volume,  # Γ
+            len(demands),  # demand frequency
+            mean_distance,  # mean distance to CS
+            np.mean(times),  # mean occurrence time
+            np.std(times) if len(demands) > 1 else 0  # std of occurrence time
+        ]
+
+    def generate_reduced_scenarios(self,
+                                 n_samples: int = 1000,
+                                 n_clusters: int = 3,
+                                 cv_threshold: float = 0.005) -> List[Dict]:
+        """Generate and reduce scenarios using k-means clustering"""
+        scenarios = []
+        features_list = []
+
+        # Generate scenarios until CV convergence
+        while len(scenarios) < n_samples:
+            scenario = self.generate_scenario()
+            scenarios.append(scenario)
+            features_list.append(scenario['features'])
+
+            # Check CV convergence
+            if len(scenarios) > 10:  # Need some samples to calculate CV
+                task_volumes = [f[0] for f in features_list]
+                cv = np.std(task_volumes) / np.mean(task_volumes)
+                if cv < cv_threshold:
+                    break
+
+        # Convert features to array for clustering
+        features_array = np.array(features_list)
+
+        # Perform k-means clustering
+        kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+        clusters = kmeans.fit_predict(features_array)
+
+        # Select representative scenarios (nearest to centroids)
+        reduced_scenarios = []
+        for i in range(n_clusters):
+            cluster_indices = np.where(clusters == i)[0]
+            centroid = kmeans.cluster_centers_[i]
+
+            # Find scenario nearest to centroid
+            min_dist = float('inf')
+            rep_idx = None
+            for idx in cluster_indices:
+                dist = np.linalg.norm(features_array[idx] - centroid)
+                if dist < min_dist:
+                    min_dist = dist
+                    rep_idx = idx
+
+            if rep_idx is not None:
+                reduced_scenarios.append(scenarios[rep_idx])
+
+        # Add extreme scenario (highest task volume)
+        extreme_idx = max(range(len(scenarios)),
+                         key=lambda i: scenarios[i]['features'][0])
+        reduced_scenarios.append(scenarios[extreme_idx])
+
+        return reduced_scenarios
+
+    def visualize_scenario(self, scenario: Dict):
+        """Visualize scenario with demands, CS and warehouses"""
+        plt.figure(figsize=(10, 10))
+
+        # Plot grid centers
+        grid_x, grid_y = zip(*self.grid_centers)
+        plt.scatter(grid_x, grid_y, c='lightgray', alpha=0.3, label='Grid')
+
+        # Plot CS locations
+        cs_x, cs_y = zip(*self.cs_locations)
+        plt.scatter(cs_x, cs_y, c='blue', marker='^', s=100, label='CS')
+
+        # Plot warehouse locations
+        wh_x, wh_y = zip(*self.warehouse_locations)
+        plt.scatter(wh_x, wh_y, c='gray', marker='s', s=100, label='Warehouse')
+
+        # Plot demands
+        if scenario['demands']:
+            demand_x, demand_y = zip(*[d['location'] for d in scenario['demands']])
+            plt.scatter(demand_x, demand_y, c='red', s=50, label='Demands')
+
+        plt.title(f"Delivery Scenario (Demands: {len(scenario['demands'])})")
+        plt.xlabel("X (km)")
+        plt.ylabel("Y (km)")
+        plt.legend()
+        plt.grid(True)
+        plt.show()
+
+# Example usage
+if __name__ == "__main__":
+    # Initialize scenario generator
+    generator = DeliveryScenario()
+
+    # Generate reduced scenarios
+    reduced_scenarios = generator.generate_reduced_scenarios(
+        n_samples=1000,
+        n_clusters=3
+    )
+
+    # Print scenario information
+    print(f"Generated {len(reduced_scenarios)} scenarios:")
+    for i, scenario in enumerate(reduced_scenarios):
+        print(f"\nScenario {i+1}:")
+        print(f"Number of demands: {len(scenario['demands'])}")
+        print(f"Features: {scenario['features']}")
+
+        # Visualize scenario
+        generator.visualize_scenario(scenario)
