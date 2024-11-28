@@ -12,8 +12,19 @@ from sklearn.cluster import KMeans, kmeans_plusplus
 from typing import List, Tuple, Dict, Any
 import matplotlib.pyplot as plt
 from matplotlib.patches import RegularPolygon
+
+# import from other codes
+import os
+import sys
+
+# Get absolute path to parent directory
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(parent_dir)
+
 from input.config import Environment as env
-import util.util as ut
+from util import util as ut
+# from ..input.config import Environment as env
+# from ..util import util as ut
 
 
 # from input.config import Parameter as param
@@ -100,11 +111,11 @@ class DeliveryScenario:
 
     def _calculate_cs_distance(self, demand_location: Tuple[float, float]) -> Tuple[int, float]:
         '''Calculate the demand point distance to candidate cs, return closet cs point'''
-        min_dist = ut.calculate_distance_on_earth(*self.grid_range)
+        min_dist = ut.calculate_euclidean_distance(*self.grid_range)
         assigned_cs = -1
 
         for i in range(self.cs_num):
-            dist = ut.calculate_distance_on_earth(self.cs_locations[i], demand_location)
+            dist = ut.calculate_euclidean_distance(self.cs_locations[i], demand_location)
             if dist < min_dist:
                 min_dist = dist
                 assigned_cs = i
@@ -140,8 +151,13 @@ class DeliveryScenario:
         }
 
 
-    def generate_single_scenario(self) -> Dict:
-        '''Generate single scenario (omega) with delivery demands (for all grid a and time epoch t)'''
+    def generate_single_scenario(self) -> Tuple[List[Dict], ]:
+        '''
+        Generate single scenario (omega) with delivery demands (for all grid a and time epoch t)
+        Returns:
+            demands: List[Dict]
+            feature: Dict
+        '''
         demands = []
         demand_count = 0
 
@@ -183,14 +199,19 @@ class DeliveryScenario:
         # # Calculate features
         feature = self._calculate_scenario_feature(demands)
 
-        return {
-            'demands': demands, 'feature': feature
-        }
+        return demands, feature
 
     def simulate_scenarios(self,
                            n_clusters: int = 4,
                            convergence_tol: float = 0.005,
                            max_samples: int = 1000) -> List[List]:
+        """
+        Simulate demand samples using Monte Carlo simulation,
+        Generate representative scenarios by clustering all samples by k++ and add extreme cases
+        Returns:
+            scenario_set: List of scenarios which are List[Dict] and each dictionary contains the information for
+            one demand (job).
+        """
         # Initialize simulation
         volume_indicator_ls = []
         demand_ls = []
@@ -205,18 +226,18 @@ class DeliveryScenario:
         coeffcient_covariance = 1
 
         while coeffcient_covariance > convergence_tol and len(volume_indicator_ls) <= max_samples:
-            single_scenario = self.generate_single_scenario()
-            volume_indicator_ls.append(single_scenario['feature']['volume_indicator'])
+            single_scenario_demand, single_scenario_feature = self.generate_single_scenario()
+            volume_indicator_ls.append(single_scenario_feature['volume_indicator'])
 
-            demand_ls.append(single_scenario['demands'])
-            feature_ls.append(list(single_scenario['feature'].values()))
+            demand_ls.append(single_scenario_demand)
+            feature_ls.append(list(single_scenario_feature.values()))
             if len(volume_indicator_ls) < 2:
                 continue
             coeffcient_covariance = np.std(volume_indicator_ls) / np.mean(volume_indicator_ls)
 
         print(f'stop generation at {len(volume_indicator_ls)} samples with cv {coeffcient_covariance}.')
         # Convert features to np.array
-        print(feature_ls)
+        # print(feature_ls)
         feature_array = np.array(feature_ls)
 
 
@@ -225,24 +246,27 @@ class DeliveryScenario:
         # labels = kmeans_instance.fit_predict(X=feature_array)
         centers, indices = kmeans_plusplus(X=feature_array, n_clusters=n_clusters, random_state=618)
 
-        reduced_scenarios = []
+        scenario_set = []
         for i in indices:
-            reduced_scenarios.append(demand_ls[i])
+            scenario_set.append(demand_ls[i])
             # print(demand_ls[i])
 
         for j in range(5):
             top_index = feature_ls.index(
                 max(feature_ls, key=lambda x: x[j])
             )
-            reduced_scenarios.append(demand_ls[top_index])
+            scenario_set.append(demand_ls[top_index])
             # print(feature_ls[top_index])
 
-        return reduced_scenarios
+        return scenario_set
 
 
 
     def visualize_single_scenarios(self, scenario: Dict=None):
-        '''Visualize single scenario'''
+        '''
+        Visualize single scenario
+        param: scenario (optional) represents a single scenario in the representative set
+        '''
         plt.figure(figsize=(10, 10))
 
         # Remove extra space at the axes
@@ -263,17 +287,17 @@ class DeliveryScenario:
 
         # Plot candidate charging station
         cs_x, cs_y = zip(*self.cs_locations)
-        plt.scatter(cs_x, cs_y, c="blue", marker="^")
+        plt.scatter(cs_x, cs_y, c="blue", marker="^", label="Candidate charging station")
 
         # Plot warehouse
         wh_x, wh_y = zip(*self.wh_locations)
-        plt.scatter(wh_x, wh_y, c="black", marker="s")
+        plt.scatter(wh_x, wh_y, c="black", marker="s", label="Warehouses")
 
         # Plot demand
         if scenario:
-            demand_x, demand_y = zip(*[d['location'] for d in scenario['demands']])
-            plt.scatter(demand_x, demand_y, c="red", s=50, marker="o")
-            plt.title(f"Delivery Scenario with {len(scenario['demands'])} Demand Occurrence")
+            demand_x, demand_y = zip(*[d['location'] for d in scenario])
+            plt.scatter(demand_x, demand_y, c="red", s=30, marker="o", label="Demand")
+            plt.title(f"Delivery Scenario with {len(scenario)} Demand Occurrence")
         else:
             plt.title(f"Grid Plot for {self.cs_num} Candidate Charging Stations and {self.wh_num} Warehouses")
 
@@ -288,13 +312,18 @@ class DeliveryScenario:
 
 if __name__ == "__main__":
     ds = DeliveryScenario()
-    single_demand, single_feature = ds.generate_single_scenario().values()
-
+    single_demand, single_feature = ds.generate_single_scenario()
+    print("Single episode simulation results:")
     for k, v in single_feature.items():
         print(f'{k}: {v}')
+    ds.visualize_single_scenarios()
+
+    print("Monte Carlo simulation and scenario clustering results:")
+    # Generate samples, reduced by k-means
+    clustered_scenarios = ds.simulate_scenarios(n_clusters=4, convergence_tol=0.005, max_samples=1000)
 
     # ds.simulate_scenarios()
-    ds.visualize_single_scenarios()
+    ds.visualize_single_scenarios(clustered_scenarios[0])
 
     # ds = {1:2, 3:4}
     # print(ds.values())

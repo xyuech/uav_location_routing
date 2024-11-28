@@ -3,8 +3,13 @@ Author: Xiyue Chen
 Date:   2024-11-18
 Usage:  Linear approximation for power consumption for UAVs at hovering states.
 '''
+# import from other codes
+import os
 import sys
-sys.path.append('../vis')
+
+# Get absolute path to parent directory
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(parent_dir)
 from input.config import Physics, Drone
 
 import numpy as np
@@ -15,22 +20,22 @@ from sklearn.linear_model import LinearRegression
 # Define constants
 g = Physics.GRAVITY  # gravitational acceleration (m/s²)
 rho = Physics.AIR_DENSITY
-A = Drone.ROTOR_AREA          # arbitrary area value
+A = Drone.ROTOR_AREA         # arbitrary area value
 # m0_ls = [3, 5, 7, 9]         # initial mass
 # m0_ls = [25, 30, 35, 40]
-m0_ls =[30]
+m0_ls =[5]
 color_ls = ['salmon', 'gold', 'lightseagreen', 'royalblue']
 
 
 def generate_data(m_values, m0):
     """Generate y values based on the given formula"""
-    constant = np.sqrt((g**3)/(2*np.pi*A))
+    constant = np.sqrt((g**3)/(2 * rho * A))
     y_values = ((m0 + m_values)**1.5) * constant
     return y_values
 
 if __name__ == "__main__":
     # Generate data points
-    m = np.linspace(0, UAV.CAPACITY, 100)  # generate 100 points from 0 to 10
+    m = np.linspace(0, Drone.CAPACITY, 100)  # generate 100 points from 0 to 5
     y_true = []
     y_pred = []
     for m0 in m0_ls:

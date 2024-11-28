@@ -1,16 +1,26 @@
-# This is a sample Python script.
+"""
+Author: Xiyue Chen
+Date:   2024-11-27
+Usage:  Execute the main program of the UAV charging station location selection
+"""
+from sampling import simulation as sim
+from preprocess import get_parameter
+def main():
+    # Input environment data for grid locations, warehouses, charging station candidates
+    # Random generation for testing create data_instance
+    ds = sim.DeliveryScenario()
 
-# Press ⌃R to execute it or replace it with your code.
-# Press Double ⇧ to search everywhere for classes, files, tool windows, actions, and settings.
 
+    d_grid_grid, d_grid_wh, d_cs_grid, d_cs_wh, d_cs_cs = get_parameter.get_travel_time(ds.grid_locations,
+                                                                                        ds.wh_locations,
+                                                                                        ds.cs_locations)
+    print(d_grid_grid)
+    # Pre-process: calculate distances
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press ⌘F8 to toggle the breakpoint.
+    # Initial feasible solution generation
 
+    # Variable neighborhood search
+    return
 
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
-    print_hi('PyCharm')
-
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+if __name__ == "__main__":
+    main()
