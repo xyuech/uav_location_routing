@@ -34,6 +34,7 @@ class DeliveryScenario:
                  grid_range: List[Tuple[float, float]] = env.GRID_SIZE,
                  # coord of [left_down, right_up] points of the grid
                  cell_side=env.CELL_SIDE,
+                 height=env.HEIGHT,
                  time_window=env.TIME_WINDOW,
                  time_interval=env.TIME_INTERVAL,
                  response_window: float = env.RESPONSE_WINDOW,
@@ -44,11 +45,13 @@ class DeliveryScenario:
                  wh_num=env.WAREHOUSE_NUM,
                  cs_locations=None,
                  wh_locations=None,
+                 measure='km',
                  random_seed = env.RANDOM_SEED):
         self.grid_range = grid_range  # TODO: convert coordinates to km and reposition to 0, 0
         self.cell_side = cell_side
         self.grid_num = None
         self.grid_locations = self._generate_hex_grids()
+        self.all_locations = set()
 
         self.time_window = time_window
         self.time_interval = time_interval
@@ -60,9 +63,14 @@ class DeliveryScenario:
 
         self.demand_rate_range = demand_rate_range
 
+        self.height = height
+
+        self.measure = measure
+
         if cs_locations is not None:
             self.cs_num = len(cs_locations)
             self.cs_locations = cs_locations
+            self.all_locations.update(cs_locations)
         else:
             self.cs_num = cs_num
             self.cs_locations = self._generate_random_locations(cs_num)
@@ -70,6 +78,7 @@ class DeliveryScenario:
         if wh_locations is not None:
             self.wh_num = len(wh_locations)
             self.wh_locations = wh_locations
+            self.all_locations.update(wh_locations)
         else:
             self.wh_num = wh_num
             self.wh_locations = self._generate_random_locations(wh_num)
@@ -85,7 +94,7 @@ class DeliveryScenario:
                 center.append((cur_x, cur_y))
                 cur_y += h
             cur_x += 1.5 * w
-            cur_y = self.cell_side * np.sqrt(3) / 2
+            cur_y = self.grid_range[0][1] + self.cell_side * (np.sqrt(3) / 2)
 
         cur_x, cur_y = self.grid_range[0][0] + self.cell_side * 2.5, self.grid_range[0][1] + self.cell_side * np.sqrt(3)
         while cur_x < self.grid_range[1][0]:
@@ -93,7 +102,7 @@ class DeliveryScenario:
                 center.append((cur_x, cur_y))
                 cur_y += h
             cur_x += 1.5 * w
-            cur_y = self.cell_side * np.sqrt(3)
+            cur_y = self.grid_range[0][1] + self.cell_side * np.sqrt(3)
 
         self.grid_num = len(center)
 
@@ -106,7 +115,7 @@ class DeliveryScenario:
             x = np.random.uniform(self.grid_range[0][0], self.grid_range[1][0])
             y = np.random.uniform(self.grid_range[0][1], self.grid_range[1][1])
             locations.append((x, y))
-
+        self.all_locations.update(locations)
         return locations
 
     def _calculate_cs_distance(self, demand_location: Tuple[float, float]) -> Tuple[int, float]:
@@ -207,7 +216,7 @@ class DeliveryScenario:
     def simulate_scenarios(self,
                            n_clusters: int = 4,
                            convergence_tol: float = 0.005,
-                           max_samples: int = 5000) -> List[List]:
+                           max_samples: int = 1000) -> List[List]:
         """
         Simulate demand samples using Monte Carlo simulation,
         Generate representative scenarios by clustering all samples by k++ and add extreme cases
@@ -226,6 +235,7 @@ class DeliveryScenario:
         # demand_ls.append(single_scenario['demands'])
         # feature_ls.append(list(single_scenario['feature'].values()))
 
+        # Simulation
         coeffcient_covariance = 1
 
         while coeffcient_covariance > convergence_tol and len(volume_indicator_ls) <= max_samples:
@@ -252,13 +262,20 @@ class DeliveryScenario:
         scenario_set = []
         for i in indices:
             scenario_set.append(demand_ls[i])
+            self.all_locations.update(
+                [d['location'] for d in demand_ls[i]]
+            )
             # print(demand_ls[i])
 
         for j in range(5):
             top_index = feature_ls.index(
                 max(feature_ls, key=lambda x: x[j])
             )
-            scenario_set.append(demand_ls[top_index])
+            if top_index not in indices:
+                scenario_set.append(demand_ls[top_index])
+                self.all_locations.update(
+                   [d['location'] for d in demand_ls[top_index]]
+                )
             # print(feature_ls[top_index])
 
         return scenario_set
@@ -332,10 +349,16 @@ class DeliveryScenario:
             plt.title(f"Delivery Scenario with {len(scenario)} Demand Occurrences")
 
         else:
-            plt.title(f"Grid Plot for {self.cs_num} Candidate Charging Stations and {self.wh_num} Warehouses")
+            if self.measure == 'km':
+                plt.title(f"Grid Plot for {self.cs_num} Candidate Charging Stations and {self.wh_num} Warehouses")
 
-        plt.xlabel("X (km)")
-        plt.ylabel("Y (km)")
+                plt.xlabel("X (km)")
+                plt.ylabel("Y (km)")
+            else:
+                plt.title(f"Map for {self.cs_num} Candidate Charging Stations and {self.wh_num} Warehouses")
+
+                plt.xlabel("Longitude")
+                plt.ylabel("Latitude")
         plt.legend()
         plt.grid(visible="True", which="major")
         plt.show()

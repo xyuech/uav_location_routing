@@ -1,65 +1,33 @@
 """
 Author: Xiyue Chen
 Date:   2024-11-24
-Usage:  Calculate parameters prior to modeling
+Usage:  Calculate parameters prior to modeling.
+        Generate dictionary for traveling time between locations
 """
 from typing import List, Tuple, Dict
 import numpy as np
-from sklearn.linear_model import LinearRegression
+from dataclasses import dataclass
 
 # import from other codes
-from input.config import Physics, Drone
+from input.config import Environment, UAV
 from util.util import calculate_distance_on_earth, calculate_euclidean_distance
+from sampling.simulation import DeliveryScenario
 
+@dataclass
+class T
 
-
-def get_uav_energy_consumption():
-    """Get linear approximation parameters for uav energy consumption per unit time"""
-    # Define constants
-    g = Physics.GRAVITY  # gravitational acceleration (m/s²)
-    rho = Physics.AIR_DENSITY
-    A = Drone.ROTOR_AREA  # arbitrary area value
-    m0_ls = [5]
-
-    def generate_data(m_values, m0):
-        """Generate y values based on the given formula"""
-        constant = np.sqrt((g ** 3) / (2 * rho * A))
-        y_values = ((m0 + m_values) ** 1.5) * constant
-        return y_values
-
-    # Generate data points
-    m = np.linspace(0, Drone.CAPACITY, 100)     # generate 100 points from 0 to 5
-    y_true = []
-    for m0 in m0_ls:                            # m0_ls only considers one initial weight
-        y = generate_data(m, m0)
-        y_true.append(y)
-
-        # Reshape data for sklearn
-        X = m.reshape(-1, 1)
-        y = y.reshape(-1, 1)
-
-        # Perform linear regression
-        model = LinearRegression()
-        model.fit(X, y)
-
-        # Print regression results
-        slope = model.coef_[0][0]
-        intercept = model.intercept_[0]
-
-    return slope, intercept
-
-def get_travel_time(grid_locations: List[Tuple[float, float]],
-                    wh_locations: List[Tuple[float, float]],
-                    cs_locations: List[Tuple[float, float]]) -> Tuple[Dict, Dict, Dict, Dict, Dict]:
+def get_travel_time(demand_scenarios: DeliveryScenario,
+                    env: Environment,
+                    uav: UAV,
+                    use_earth_distance:bool = False) -> Dict[Tuple[Tuple[float, float], Tuple[float, float]], float]:
     """
     Calculate distances between all possible locations
     Returns:
-        dist_grid_grid: Dict {(gd_index, gd_index): distance}
-        dist_grid_wh: Dict {(wh_index, grid_index): distance}
-        dist_cs_wh: Dict {(cs_index, wh_index): distance}
-        dist_cs_grid: Dict {(cs_index, grid_index): distance}
-        dist_cs_cs: Dict {(cs_index, cs_index): distance}
+        Dict[(location1, location2): distance]
     """
+    distances = {}
+    calc_func = calculate_distance_on_earth if use_earth_distance else calculate_euclidean_distance
+
     dist_grid_grid = {}
     dist_grid_wh= {}
     dist_cs_grid = {}
@@ -92,6 +60,7 @@ def get_travel_time(grid_locations: List[Tuple[float, float]],
     distances = dist_grid_grid | dist_grid_wh | dist_cs_grid | dist_cs_wh | dist_cs_cs
     return distances
 
-
+@dataclass
+class Distances:
 
 
