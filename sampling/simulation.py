@@ -131,7 +131,7 @@ class DeliveryScenario:
         distances = []
         for d in demands:
             loc = d['location']
-            if loc in distances:
+            if loc in mem:
                 distances.append(mem[loc])
             else:
                 _, dist = self._calculate_cs_distance(loc)
@@ -162,7 +162,8 @@ class DeliveryScenario:
         demand_count = 0
 
         # for each demand cell
-        for cell_center in self.grid_locations:
+        for grid_id in range(self.grid_num):
+            cell_center = self.grid_locations[grid_id]
             # generate demand rate for cell center for all period t
             cell_rate = np.random.uniform(*self.demand_rate_range, self.period_num)
 
@@ -178,6 +179,7 @@ class DeliveryScenario:
                         mass -= 5
                         demand = {
                             'id': demand_count,
+                            'addr_id': grid_id,
                             'location': cell_center,
                             't_lb': time,
                             't_ub': time + self.response_window,
@@ -188,6 +190,7 @@ class DeliveryScenario:
 
                     demand = {
                         'id': demand_count,
+                        'addr_id': grid_id,
                         'location': cell_center,
                         't_lb': time,
                         't_ub': time + self.response_window,
@@ -204,7 +207,7 @@ class DeliveryScenario:
     def simulate_scenarios(self,
                            n_clusters: int = 4,
                            convergence_tol: float = 0.005,
-                           max_samples: int = 1000) -> List[List]:
+                           max_samples: int = 5000) -> List[List]:
         """
         Simulate demand samples using Monte Carlo simulation,
         Generate representative scenarios by clustering all samples by k++ and add extreme cases
@@ -295,9 +298,39 @@ class DeliveryScenario:
 
         # Plot demand
         if scenario:
-            demand_x, demand_y = zip(*[d['location'] for d in scenario])
-            plt.scatter(demand_x, demand_y, c="red", s=30, marker="o", label="Demand")
-            plt.title(f"Delivery Scenario with {len(scenario)} Demand Occurrence")
+            # Get demand locations
+            demand_locations = [d['location'] for d in scenario]
+
+            # Count frequency of each location
+            from collections import Counter
+            location_counts = Counter(map(tuple, demand_locations))
+
+            # Calculate color normalization based on counts
+            max_count = max(location_counts.values())
+            norm = plt.Normalize(vmin=1, vmax=max_count)
+
+            # Create scalar mappable before plotting hexagons
+            sm = plt.cm.ScalarMappable(cmap=plt.cm.Reds, norm=norm)
+            sm.set_array([])  # This is the key fix
+
+            # Plot hexagon for each unique demand location
+            for location, count in location_counts.items():
+                # Create hexagon with shade based on frequency
+                hex = RegularPolygon(location,
+                                     numVertices=6,
+                                     radius=self.cell_side,  # Full grid cell size
+                                     orientation=math.pi / 6,
+                                     facecolor=plt.cm.Reds(norm(count)),  # Red shade based on frequency
+                                     edgecolor='red',
+                                     alpha=0.7,
+                                     label="Demand" if location == list(location_counts.keys())[0] else "")
+                plt.gca().add_patch(hex)
+
+            # Add colorbar with explicit axes specification
+            plt.colorbar(sm, ax=plt.gca(), label='Demand Frequency')
+
+            plt.title(f"Delivery Scenario with {len(scenario)} Demand Occurrences")
+
         else:
             plt.title(f"Grid Plot for {self.cs_num} Candidate Charging Stations and {self.wh_num} Warehouses")
 

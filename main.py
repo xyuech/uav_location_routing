@@ -11,10 +11,10 @@ def main():
     ds = sim.DeliveryScenario()
 
 
-    d_grid_grid, d_grid_wh, d_cs_grid, d_cs_wh, d_cs_cs = get_parameter.get_travel_time(ds.grid_locations,
-                                                                                        ds.wh_locations,
-                                                                                        ds.cs_locations)
-    print(d_grid_grid)
+    distances = get_parameter.get_travel_time(ds.grid_locations,
+                                              ds.wh_locations,
+                                              ds.cs_locations)
+    print(distances)
     # Pre-process: calculate distances
 
     # Initial feasible solution generation

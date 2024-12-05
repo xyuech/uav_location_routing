@@ -7,7 +7,11 @@ class Drone:
     WEIGHT = 5
     CAPACITY = 5
 
-    UNIT_SPPED = 5          # TO DO: verify the speed setting
+    SPEED_VERTICAL = 10          # TODO: verify the speed setting
+    SPEED_HORIZONTAL = 20
+
+    # Engergy related
+    BATTERY_CAPACITY = 100      # watt
 
     # Type 2: Large Drone
     # ROTOR_SWEEP = 1.5
@@ -35,23 +39,37 @@ class Environment:
 
     # Time related parameters
     RESPONSE_WINDOW = 15                # minute, time window for delivery
-    TIME_WINDOW = (0, 480)              # minute operation time window
-    TIME_INTERVAL = 60                  # time interval of demand occurence
+    TIME_WINDOW = (0, 8)              # minute operation time window
+    TIME_INTERVAL = 1                  # time interval of demand occurence
 
     LOAD_AVG = 0.5                      # kg
     LOAD_STD = 0.1                      # kg standard deviation of load weight
-    DEMAND_RATE_RANGE = (0.1, 0.3)      # times/hour demand rate in one cell
+    DEMAND_RATE_RANGE = (0, 0.05)      # times/hour demand rate in one cell
 
     CAND_CS_NUM = 20                    # number of candidate charging station
     WAREHOUSE_NUM = 4                   # number of warehouse
 
     RANDOM_SEED = 6
 
+class Model:
+    MAX_CHARGING_FREQ = 4
+    PENALTY_COEF = 1e-6
+
+    OPERATION_UNIT_COST = 10            # $10 dollar
+
+    # Investment cost
+    EXPANSION_COST = 1000               # Cost to expand warehouse to warehouse + charging station
+    CONSTRUCTION_COST = 2000            # Cost to construct charging station
+    UAV_MARGINAL_COST = 300             # Variable cost to have one extra drone
+
+    # Operation cost
+    TIME_UNIT_COST = 0.1                # Unit operation cost per unit time
 
 
 
-
-# class Parameter:
+class Algorithm:
+    MAX_ITERATION = 300
+    MIN_CONVERGE = 10
 
 
 

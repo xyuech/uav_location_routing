@@ -9,7 +9,7 @@ from sklearn.linear_model import LinearRegression
 
 # import from other codes
 from input.config import Physics, Drone
-from util import util as ut
+from util.util import calculate_distance_on_earth, calculate_euclidean_distance
 
 
 
@@ -54,7 +54,7 @@ def get_travel_time(grid_locations: List[Tuple[float, float]],
     """
     Calculate distances between all possible locations
     Returns:
-        dist_grid_grid: Dict {(grid_index, grid_index): distance}
+        dist_grid_grid: Dict {(gd_index, gd_index): distance}
         dist_grid_wh: Dict {(wh_index, grid_index): distance}
         dist_cs_wh: Dict {(cs_index, wh_index): distance}
         dist_cs_grid: Dict {(cs_index, grid_index): distance}
@@ -66,29 +66,31 @@ def get_travel_time(grid_locations: List[Tuple[float, float]],
     dist_cs_wh = {}
     dist_cs_cs = {}
 
-    # TO DO: change to earth surface distance
+    # TODO: change to earth surface distance
+    # TODO: calculate travel time
     for n1 in range(len(cs_locations)):
         for n2 in range(n1+1, len(cs_locations)):
-            dist_cs_cs[(n1, n2)] = ut.calculate_euclidean_distance(cs_locations[n1],
-                                                                   cs_locations[n2])
+            dist_cs_cs[(f"cs_{n1}", f"cs_{n2}")] = calculate_euclidean_distance(cs_locations[n1],
+                                                                                cs_locations[n2])
         for i in range(len(grid_locations)):
-            dist_cs_grid[(n1, i)] = ut.calculate_euclidean_distance(cs_locations[n1],
-                                                                    grid_locations[i])
+            dist_cs_grid[(f"cs_{n1}", f"gd_{i}")] = calculate_euclidean_distance(cs_locations[n1],
+                                                                                 grid_locations[i])
 
         for j in range(len(wh_locations)):
-            dist_cs_wh[(n1, j)] = ut.calculate_euclidean_distance(cs_locations[n1],
-                                                                  wh_locations[j])
+            dist_cs_wh[(f"cs_{n1}", f"wh_{j}")] = calculate_euclidean_distance(cs_locations[n1],
+                                                                               wh_locations[j])
 
     for ind1 in range(len(grid_locations)):
         for ind2 in range(ind1+1, len(grid_locations)):
-            dist_grid_grid[(ind1, ind2)] = ut.calculate_euclidean_distance(grid_locations[ind1],
-                                                                           grid_locations[ind2])
+            dist_grid_grid[(f"gd_{ind1}", f"gd_{ind2}")] = calculate_euclidean_distance(grid_locations[ind1],
+                                                                                        grid_locations[ind2])
 
         for j in range(len(wh_locations)):
-            dist_grid_wh[(ind1, j)] = ut.calculate_euclidean_distance(grid_locations[ind1],
-                                                                      wh_locations[j])
-
-    return dist_grid_grid, dist_grid_wh, dist_cs_grid, dist_cs_wh, dist_cs_cs
+            dist_grid_wh[(f"gd_{ind1}", f"wh_{j}")] = calculate_euclidean_distance(grid_locations[ind1],
+                                                                                   wh_locations[j])
+    # merge all distances
+    distances = dist_grid_grid | dist_grid_wh | dist_cs_grid | dist_cs_wh | dist_cs_cs
+    return distances
 
 
 
