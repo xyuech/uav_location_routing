@@ -3,11 +3,15 @@ Author: Xiyue Chen
 Date:   2024-12-05
 Usage:  Assignment demand to charging stations, according to closet distances
 """
+from typing import List, Tuple, Dict, Set
+from dataclasses import dataclass
 import numpy as np
 from scipy.spatial import Voronoi, voronoi_plot_2d
 import matplotlib.pyplot as plt
-from typing import List, Tuple, Dict, Set
-from dataclasses import dataclass
+
+from sampling.simulation import DeliveryScenario
+
+
 
 # import from other codes
 from sampling.simulation import DeliveryScenario
@@ -23,6 +27,8 @@ def assign_address(
         demand_addresses: List[Tuple[float, float]],
         charging_stations: List[Tuple[float, float]]
 ) -> DemandAssignmentData:
+    """Assign demand address to charging stations (under a single scenario)"""
+    print("INFO: assign_address start")
     stations_array = np.array(charging_stations)
     vor = Voronoi(stations_array)
 

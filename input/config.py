@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import numpy as np
 from sklearn.linear_model import LinearRegression
 
@@ -11,11 +11,11 @@ class UAV:
     WEIGHT: float = 5
     WEIGHT_CAPACITY: float = 5
 
-    SPEED_VERTICAL = 10          # TODO: verify the speed setting
-    SPEED_HORIZONTAL = 20
+    SPEED_VERTICAL = 10             # km/h
+    SPEED_HORIZONTAL = 20           # km/h
 
     # Engergy related
-    BATTERY_CAPACITY = 100      # watt
+    BATTERY_CAPACITY = 100          # watt
 
     # Type 2: Large Drone
     # ROTOR_SWEEP = 1.5
@@ -24,28 +24,31 @@ class UAV:
     #
     # WEIGHT = 20
     # CAPACITY = 35
-    @property
-    def ROTOR_AREA(self):
-        return self.ROTOR_NUM * self.ROTOR_SWEEP
-    @property
-    def BATTERY_APPROX_PARAM(self):
-        """Get linear approximation parameters for uav energy consumption per unit time"""
 
-        # Generate data points
-        m = np.linspace(0, self.WEIGHT_CAPACITY, 100)  # generate 100 points from 0 to 5
+    # New attributes that will be calculated in __post_init__, i/o property
+    BATTERY_SLOPE: float = field(init=False)
+    BATTERY_INTERCEPT: float = field(init=False)
+    ROTOR_AREA: float = field(init=False)
+
+    def __post_init__(self):
+        # Calculate ROTOR_AREA
+        self.ROTOR_AREA = self.ROTOR_NUM * self.ROTOR_SWEEP
+
+        # Generate data points for linear regression
+        m = np.linspace(0, self.WEIGHT_CAPACITY, 100)
         constant = np.sqrt((Physics.GRAVITY ** 3) / (2 * Physics.AIR_DENSITY * self.ROTOR_AREA))
         y = ((self.WEIGHT + m) ** 1.5) * constant
 
         X = m.reshape(-1, 1)
         y = y.reshape(-1, 1)
 
+        # Fit linear regression model
         model = LinearRegression()
         model.fit(X, y)
 
-        # Print regression results
-        slope = model.coef_[0][0]
-        intercept = model.intercept_[0]
-        return slope, intercept
+        # Store results
+        self.BATTERY_SLOPE = model.coef_[0][0]
+        self.BATTERY_INTERCEPT = model.intercept_[0]
 
 @dataclass
 class Physics:
@@ -59,7 +62,7 @@ class Physics:
 class Environment:
     GRID_SIZE = [(-96.95, 32.6), (-96.6, 33)]    # km -> DONE: convert to Dallas lat, long
 
-    CELL_SIDE = 0.015                    # DONE: approximate shift in lat and long by 1.5 km eastward or northward
+    CELL_SIDE = 0.015                   # DONE: approximate shift in lat and long by 1.5 km eastward or northward
     HEIGHT = 0.3048                     # km (1000 ft) minimum UAV flight height in Class G (uncontrolled) airspace
 
     # GRID_SIZE = [(0, 0), (5, 5)]        # km
@@ -72,7 +75,7 @@ class Environment:
 
     LOAD_AVG = 0.5                      # kg
     LOAD_STD = 0.1                      # kg standard deviation of load weight
-    DEMAND_RATE_RANGE = (0, 0.1)      # times/hour demand rate in one cell
+    DEMAND_RATE_RANGE = (0.1, 0.3)      # times/hour demand rate in one cell
 
     CAND_CS_NUM = 20                    # number of candidate charging station
     WAREHOUSE_NUM = 4                   # number of warehouse

@@ -4,6 +4,7 @@ Date:   2024-11-19
 Usage:  Scenario generation by Monte Carlo simulation.
 '''
 import math
+import random
 
 import pandas as pd
 import numpy as np
@@ -22,7 +23,7 @@ parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(parent_dir)
 
 from input.config import Environment as env
-from util import util as ut
+from util.util import calculate_distance_on_earth
 # from ..input.config import Environment as env
 # from ..util import util as ut
 
@@ -83,6 +84,8 @@ class DeliveryScenario:
             self.wh_num = wh_num
             self.wh_locations = self._generate_random_locations(wh_num)
 
+        self.clustered_scenarios = self.simulate_scenarios()
+
     def _generate_hex_grids(self) -> List[Tuple[float, float]]:
         '''Generate hexagonal cell center in side the grid range.'''
         h = self.cell_side * np.sqrt(3)
@@ -120,16 +123,12 @@ class DeliveryScenario:
 
     def _calculate_cs_distance(self, demand_location: Tuple[float, float]) -> Tuple[int, float]:
         '''Calculate the demand point distance to candidate cs, return closet cs point'''
-        min_dist = ut.calculate_euclidean_distance(*self.grid_range)
-        assigned_cs = -1
 
-        for i in range(self.cs_num):
-            dist = ut.calculate_euclidean_distance(self.cs_locations[i], demand_location)
-            if dist < min_dist:
-                min_dist = dist
-                assigned_cs = i
+        distances = calculate_distance_on_earth(self.cs_locations, demand_location)
+        closet_idx = np.argmin(distances)
+        min_dist = distances[closet_idx]
 
-        return assigned_cs, min_dist
+        return closet_idx, min_dist
 
     def _calculate_scenario_feature(self, demands: List[Dict]) -> list[float | int | ndarray | Any]:
         '''Calculate the feature for the scenario given all demands.'''
@@ -143,7 +142,7 @@ class DeliveryScenario:
             if loc in mem:
                 distances.append(mem[loc])
             else:
-                _, dist = self._calculate_cs_distance(loc)
+                closet_station_idx, dist = self._calculate_cs_distance(loc)
                 mem[loc] = dist
                 distances.append(dist)
 
@@ -183,6 +182,7 @@ class DeliveryScenario:
                     # time = t * self.time_interval + np.random.uniform(60)
                     time = t * self.time_interval  # the demand only occur 60 minutes after last interval
                     mass = np.random.normal(self.load_avg, self.load_std)
+                    wh_id = random.randint(0, self.wh_num-1)
 
                     while mass > 5:
                         mass -= 5
@@ -190,6 +190,8 @@ class DeliveryScenario:
                             'id': demand_count,
                             'addr_id': grid_id,
                             'location': cell_center,
+                            'wh_id': wh_id,
+                            'wh_location':self.wh_locations[wh_id],
                             't_lb': time,
                             't_ub': time + self.response_window,
                             'mass': 5
@@ -201,6 +203,8 @@ class DeliveryScenario:
                         'id': demand_count,
                         'addr_id': grid_id,
                         'location': cell_center,
+                        'wh_id': wh_id,
+                        'wh_location': self.wh_locations[wh_id],
                         't_lb': time,
                         't_ub': time + self.response_window,
                         'mass': mass
@@ -224,6 +228,7 @@ class DeliveryScenario:
             scenario_set: List of scenarios which are List[Dict] and each dictionary contains the information for
             one demand (job).
         """
+        print("INFO: simulate_scenario start.")
         # Initialize simulation
         volume_indicator_ls = []
         demand_ls = []
@@ -244,11 +249,11 @@ class DeliveryScenario:
 
             demand_ls.append(single_scenario_demand)
             feature_ls.append(list(single_scenario_feature.values()))
-            if len(volume_indicator_ls) < 2:
+            if len(volume_indicator_ls) <= n_clusters:
                 continue
             coeffcient_covariance = np.std(volume_indicator_ls) / np.mean(volume_indicator_ls)
 
-        print(f'stop generation at {len(volume_indicator_ls)} samples with cv {coeffcient_covariance}.')
+        print(f'info: scenario stop generation at {len(volume_indicator_ls)} samples with cv {coeffcient_covariance}.')
         # Convert features to np.array
         # print(feature_ls)
         feature_array = np.array(feature_ls)
