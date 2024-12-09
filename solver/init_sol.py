@@ -13,8 +13,8 @@ from preprocess.assign_demand import DemandAssignmentData, assign_address
 
 @dataclass
 class InvestmentVariable:
-    working_charging_station: Dict[Tuple[float, float], bool]   # {coordinate: construction decision}
-    uav_num_assignment: Dict[Tuple[float, float], int]              # {coordinate: number of UAV assigned}
+    working_charging_station: List[bool]       # [construction decision for cs_id in range(cs_num)]
+    uav_num_assignment: List[int]              # [number of UAV assigned for cs_id in range(cs_num)]
 def sum_trip_time(charging_stations: List[Tuple[float, float]],
                   parameters: Parameter,
                   demands_i: List[Dict],
@@ -42,7 +42,7 @@ def sum_trip_time(charging_stations: List[Tuple[float, float]],
 def generate_initial_solution_greedy(demand_scenarios: DeliveryScenario,
                                      parameters: Parameter,
                                      uav: config.UAV, mod: config.Model,
-                                     ) -> Tuple[DemandAssignmentData, InvestmentVariable]:
+                                     ) -> Tuple[List[DemandAssignmentData], InvestmentVariable]:
     """
     Generate demand assignment across scenarios, initial solution for investment variable
     """
@@ -52,8 +52,8 @@ def generate_initial_solution_greedy(demand_scenarios: DeliveryScenario,
 
     working_charging_station = [False for _ in charging_stations]        # initialize flag
     uav_num_assignment = [0 for _ in charging_stations]                  # initialize max count
-    demand_to_station_all = {}                                           # initialize empty dictionary
-    station_to_demands_all = {cs: set() for cs in charging_stations}
+    demand_assignment_all = []                                           # initialize empty dictionary
+
     # 1. iterate all scenarios
     scenario_set = demand_scenarios.clustered_scenarios
     for i in range(len(scenario_set)):
@@ -82,13 +82,9 @@ def generate_initial_solution_greedy(demand_scenarios: DeliveryScenario,
                 uav_num_assignment[i] = max(uav_num_assignment[i], k1, k2)
         print(f'DEBUG: scenario {i} update number of uav deployed: {uav_num_assignment}')
 
-        # 1.4 update demand assignment for different demand occured
-        demand_to_station_all |= assignment_data_i.demand_to_station
-        station_to_demands_all = {cs: station_to_demands_all[cs] | assignment_data_i.station_to_demands[cs] for cs in charging_stations}
+        # 1.4 collect demand assignment for different scenarios
+        demand_assignment_all.append(assignment_data_i)
 
     investment_decision = InvestmentVariable(working_charging_station, uav_num_assignment)
-    demand_assignment_all = DemandAssignmentData(demand_to_station_all, station_to_demands_all,
-                                                 assignment_data_i.vor) # use the Voronoi of last scenario
 
     return demand_assignment_all, investment_decision
-
