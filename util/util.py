@@ -45,6 +45,7 @@ def calculate_distance_on_earth(
         np.sin(lat1) * np.sin(lat2)
     )
     distances.flatten()
+    distances = np.nan_to_num(distances, 0)
 
     return float(distances[0]) if len(distances) == 1 else distances
 

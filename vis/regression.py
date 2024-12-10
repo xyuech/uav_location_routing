@@ -10,7 +10,7 @@ import sys
 # Get absolute path to parent directory
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(parent_dir)
-from input.config import Physics, Drone
+from input.config import Physics, UAV
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -18,9 +18,10 @@ from sklearn.linear_model import LinearRegression
 
 
 # Define constants
+UAV = UAV()
 g = Physics.GRAVITY  # gravitational acceleration (m/s²)
 rho = Physics.AIR_DENSITY
-A = Drone.ROTOR_AREA         # arbitrary area value
+A = UAV.ROTOR_AREA         # arbitrary area value
 # m0_ls = [3, 5, 7, 9]         # initial mass
 # m0_ls = [25, 30, 35, 40]
 m0_ls =[5]
@@ -35,7 +36,7 @@ def generate_data(m_values, m0):
 
 if __name__ == "__main__":
     # Generate data points
-    m = np.linspace(0, Drone.CAPACITY, 100)  # generate 100 points from 0 to 5
+    m = np.linspace(0, UAV.WEIGHT_CAPACITY, 100)  # generate 100 points from 0 to 5
     y_true = []
     y_pred = []
     for m0 in m0_ls:

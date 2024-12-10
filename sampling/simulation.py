@@ -6,7 +6,6 @@ Usage:  Scenario generation by Monte Carlo simulation.
 import math
 import random
 
-import pandas as pd
 import numpy as np
 from numpy import ndarray
 from sklearn.cluster import KMeans, kmeans_plusplus
@@ -23,6 +22,7 @@ parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(parent_dir)
 
 from input.config import Environment as env
+import input.config as config
 from util.util import calculate_distance_on_earth
 # from ..input.config import Environment as env
 # from ..util import util as ut
@@ -53,7 +53,7 @@ class DeliveryScenario:
         self.grid_num = None
         self.grid_locations = self._generate_hex_grids()
         self.all_locations = set()
-
+        # Demand related parameter
         self.time_window = time_window
         self.time_interval = time_interval
         self.period_num = int(time_window[1] / time_interval)
@@ -63,10 +63,14 @@ class DeliveryScenario:
         self.load_std = load_std
 
         self.demand_rate_range = demand_rate_range
-
+        # Flight height
         self.height = height
-
+        # Distance measure
         self.measure = measure
+
+        # Initialize random seed for replication
+        self.seed = random_seed
+        self.rng = np.random.RandomState(self.seed)
 
         if cs_locations is not None:
             self.cs_num = len(cs_locations)
@@ -85,6 +89,7 @@ class DeliveryScenario:
             self.wh_locations = self._generate_random_locations(wh_num)
 
         self.clustered_scenarios = self.simulate_scenarios()
+
 
     def _generate_hex_grids(self) -> List[Tuple[float, float]]:
         '''Generate hexagonal cell center in side the grid range.'''
@@ -113,11 +118,9 @@ class DeliveryScenario:
 
     def _generate_random_locations(self, n: int) -> List[Tuple[float, float]]:
         '''Generate candidate charging station location. Should be '''
-        locations = []
-        for _ in range(n):
-            x = np.random.uniform(self.grid_range[0][0], self.grid_range[1][0])
-            y = np.random.uniform(self.grid_range[0][1], self.grid_range[1][1])
-            locations.append((x, y))
+        x_coords = self.rng.uniform(self.grid_range[0][0], self.grid_range[1][0], size=n)
+        y_coords = self.rng.uniform(self.grid_range[0][1], self.grid_range[1][1], size=n)
+        locations = list(zip(x_coords, y_coords))
         self.all_locations.update(locations)
         return locations
 
@@ -173,16 +176,16 @@ class DeliveryScenario:
         for grid_id in range(self.grid_num):
             cell_center = self.grid_locations[grid_id]
             # generate demand rate for cell center for all period t
-            cell_rate = np.random.uniform(*self.demand_rate_range, self.period_num)
+            cell_rate = self.rng.uniform(*self.demand_rate_range, self.period_num)
 
             for t in range(self.period_num):
                 # generate demand
-                if np.random.uniform() < cell_rate[t]:
+                if self.rng.uniform() < cell_rate[t]:
                     # # simulate demand occurence time
                     # time = t * self.time_interval + np.random.uniform(60)
                     time = t * self.time_interval  # the demand only occur 60 minutes after last interval
-                    mass = np.random.normal(self.load_avg, self.load_std)
-                    wh_id = random.randint(0, self.wh_num-1)
+                    mass = self.rng.normal(self.load_avg, self.load_std)
+                    wh_id = self.rng.randint(0, self.wh_num)
 
                     while mass > 5:
                         mass -= 5
@@ -253,7 +256,7 @@ class DeliveryScenario:
                 continue
             coeffcient_covariance = np.std(volume_indicator_ls) / np.mean(volume_indicator_ls)
 
-        print(f'info: scenario stop generation at {len(volume_indicator_ls)} samples with cv {coeffcient_covariance}.')
+        print(f'INFO: scenario generation stopped at {len(volume_indicator_ls)} samples with cv {coeffcient_covariance}.')
         # Convert features to np.array
         # print(feature_ls)
         feature_array = np.array(feature_ls)
@@ -287,7 +290,7 @@ class DeliveryScenario:
 
 
 
-    def visualize_single_scenarios(self, scenario: Dict=None):
+    def visualize_scenarios(self, scenario: Dict=None):
         '''
         Visualize single scenario
         param: scenario (optional) represents a single scenario in the representative set
@@ -309,14 +312,6 @@ class DeliveryScenario:
 
         grid_x, grid_y = zip(*self.grid_locations)
         plt.scatter(grid_x, grid_y, c="lightgray", marker=".")
-
-        # Plot candidate charging station
-        cs_x, cs_y = zip(*self.cs_locations)
-        plt.scatter(cs_x, cs_y, c="blue", marker="^", label="Candidate charging station")
-
-        # Plot warehouse
-        wh_x, wh_y = zip(*self.wh_locations)
-        plt.scatter(wh_x, wh_y, c="black", marker="s", label="Warehouses")
 
         # Plot demand
         if scenario:
@@ -364,9 +359,18 @@ class DeliveryScenario:
 
                 plt.xlabel("Longitude")
                 plt.ylabel("Latitude")
+
+        # Plot candidate charging station
+        cs_x, cs_y = zip(*self.cs_locations)
+        plt.scatter(cs_x, cs_y, c="blue", marker="^", label="Candidate charging station")
+
+        # Plot warehouse
+        wh_x, wh_y = zip(*self.wh_locations)
+        plt.scatter(wh_x, wh_y, c="black", marker="s", label="Warehouses")
+
         plt.legend()
         plt.grid(visible="True", which="major")
-        plt.show()
+        plt.savefig(config.Path.HOME+'/output/grid.png')
         return
 
 
@@ -377,20 +381,12 @@ if __name__ == "__main__":
     print("Single episode simulation results:")
     for k, v in single_feature.items():
         print(f'{k}: {v}')
-    ds.visualize_single_scenarios()
+    ds.visualize_scenarios()
 
     print("Monte Carlo simulation and scenario clustering results:")
     # Generate samples, reduced by k-means
     clustered_scenarios = ds.simulate_scenarios(n_clusters=4, convergence_tol=0.005, max_samples=1000)
 
     # ds.simulate_scenarios()
-    ds.visualize_single_scenarios(clustered_scenarios[0])
-
-    # ds = {1:2, 3:4}
-    # print(ds.values())
-    # print(type(ds.values()))
-    # print(list(ds.values()))
-    # print(type(list(ds.values())))
-    #
-
-
+    ds.visualize_single_scenarios(ds.clustered_scenarios[0])
+    ds.visualize_single_scenarios(ds.clustered_scenarios[1])
