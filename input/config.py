@@ -13,13 +13,14 @@ class UAV:
     WEIGHT_CAPACITY: float = 5
 
     SPEED_VERTICAL = 20             # km/h
-    SPEED_HORIZONTAL = 50           # km/h
+    SPEED_HORIZONTAL = 80           # km/h
 
     # Engergy related
     S_MIN = 0.1                     # min state of charge
     S_MAX = 0.9                     # max state of charge
     BATTERY_INITIAL = 60            # watt
     BATTERY_CAPACITY = 100          # watt
+
     BATTERY_SLOPE: float = 43.6838          # watt/kg
     BATTERY_INTERCEPT: float = 112.9572     # watt
 
@@ -85,7 +86,7 @@ class Environment:
 
     LOAD_AVG = 0.5                      # kg
     LOAD_STD = 0.1                      # kg standard deviation of load weight
-    DEMAND_RATE_RANGE = (0.1, 0.2)      # times/hour demand rate in one cell
+    DEMAND_RATE_RANGE = (0, 0.025)      # times/hour demand rate in one cell
 
     CAND_CS_NUM = 20                    # number of candidate charging station
     WAREHOUSE_NUM = 4                   # number of warehouse
@@ -104,6 +105,7 @@ class Model:
 
     # Operation cost
     TIME_UNIT_COST = 10                 # $10 Unit operation cost per unit time
+    LAMBDA = 0.1                        # Penalty coefficient
 
 
     BIG_M_TIME = 40                     # 5-times max time

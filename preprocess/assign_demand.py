@@ -20,8 +20,8 @@ from util.util import calculate_distance_on_earth, calculate_euclidean_distance
 @dataclass
 class DemandAssignmentData:
     """Store the station and demand address mapping"""
-    demand_to_station: Dict[Tuple[float, float], Tuple[float, float]]
-    station_to_demands: Dict[Tuple[float, float], Set[Tuple[float, float]]]
+    demand_to_station: Dict[Tuple[float, float], Tuple[float, float]]           # Dict[loc, loc]
+    station_to_demands: Dict[Tuple[float, float], Set[Tuple[float, float]]]     # Dict[loc, set(loc)]
     vor: Voronoi
 def assign_address(
         demand_addresses: List[Tuple[float, float]],

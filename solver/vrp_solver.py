@@ -1,7 +1,7 @@
 """
 Author: Xiyue Chen
 Date:   2024-11-27
-Usage:  Solve the 2-nd stage routing sub-problem under a realized scenario \omega.
+Usage:  Solve the 2-nd stage VRP sub-problem for single CS with K UAV under a realized scenario \omega.
         The investment variable, UAV assignment variable, customer-charging center coverage is pre-determined.
 """
 from typing import List, Tuple, Dict, Set, Any
@@ -154,7 +154,7 @@ class VRPSolver:
 
 
         # Route constraints
-        # 1-a: all demands must be visited at least once 
+        # 1-a: all demands must be visited at least once (can be visited again)
         for did in demands_filtered_id:
             demand_name = f'd_{did}'
             target_arc = set([node_pair for node_pair in (E3 | E4 | E6) if node_pair[1] == demand_name])
@@ -162,7 +162,7 @@ class VRPSolver:
                         >= 1)
             # print(f"DEBUG: route constraint added, with total_constr_num {len(m.getConstrs())}")
 
-        # 1-b: each uav k  can leave starting CS only once if deployed
+        # 1-b: each uav k must leave starting CS only once if deployed
         for k in range(uav_num):
             m.addConstr(gp.quicksum(x[(k, name1, name2)] for (name1, name2) in (E1 | E8)) == z[k])
 
@@ -176,22 +176,22 @@ class VRPSolver:
                 m.addConstr(gp.quicksum(x[(k, name1, name2)] for (name1, name2) in (E2 | E5)
                                         if bool(re.match(pattern_cs_h[h], name2)))
                             <= z[k])
-            # index dominance constraint for the number of charging stations
-            for h in range(1, self.H-1):
-                m.addConstr(gp.quicksum(x[(k, name1, name2)] for (name1, name2) in (E2 | E5)
-                                        if bool(re.match(pattern_cs_h[h], name2)))
-                            <= gp.quicksum(x[(k, name1, name2)] for (name1, name2) in (E2 | E5)
-                                        if bool(re.match(pattern_cs_h[h+1], name2)))
-                            )
+            # # index dominance constraint for the number of charging stations
+            # for h in range(1, self.H-1):
+            #     m.addConstr(gp.quicksum(x[(k, name1, name2)] for (name1, name2) in (E2 | E5)
+            #                             if bool(re.match(pattern_cs_h[h], name2)))
+            #                 <= gp.quicksum(x[(k, name1, name2)] for (name1, name2) in (E2 | E5)
+            #                             if bool(re.match(pattern_cs_h[h+1], name2)))
+            #                 )
 
         # 1-e: each uav k have route flow balance constraint
         for k in range(uav_num):
             for name in name_all:
                 if not bool(re.match(pattern_cs_0, name)) and not bool(re.match(pattern_cs_h[self.H-1], name)):
 
-                    target_arc_lhs = [(name1, name2) for (name1, name2) in (E1 | E2 | E3 | E4 | E5 | E6 | E7)
+                    target_arc_lhs = [(name1, name2) for (name1, name2) in (E1 | E2 | E3 | E4 | E5 | E6)
                                       if name2 == name]
-                    target_arc_rhs = [(name1, name2) for (name1, name2) in (E2 | E3 | E4 | E5 | E6 | E7 | E8)
+                    target_arc_rhs = [(name1, name2) for (name1, name2) in (E2 | E3 | E4 | E5 | E6 | E7)
                                       if name1 == name]
 
                     m.addConstr(gp.quicksum(x[(k, name1, name2)] for (name1, name2) in target_arc_lhs)
@@ -246,11 +246,11 @@ class VRPSolver:
 
                     # 2-d resting time constraints
                     if loc1 in demands_filtered_loc:
-
+                        # resting time for demand = handling time
                         m.addConstr(t_resting[(k, name1)] == self.handling_time)
                         # print(f"DEBUG: Constraint for resting time added (for {name1}).")
                     else:
-
+                        # resting time for cs = 0
                         m.addConstr(t_resting[(k, name1)] == 0)
                         # print(f"DEBUG: Constraint for resting time added (for {name1}).")
 
@@ -275,8 +275,8 @@ class VRPSolver:
         for k in range(uav_num):
         # 3-a relational constraint
             for id1, loc1 in enumerate(locations_all):
+                name1 = name_all[id1]
                 for id2, loc2 in enumerate(locations_all):
-                    name1 = name_all[id1]
                     name2 = name_all[id2]
                     if name1 != name2 and (name1, name2) in (E1 | E2 | E3 | E4 | E5 | E6 | E7 | E8):
                         m.addConstr(m_leaving[(k, name1)] - m_leaving[(k, name2)] + m_changed[(k, name2)]
@@ -315,8 +315,8 @@ class VRPSolver:
         for k in range(uav_num):
         # 4-a energy relational constraint
             for id1, loc1 in enumerate(locations_all):
+                name1 = name_all[id1]
                 for id2, loc2 in enumerate(locations_all):
-                    name1 = name_all[id1]
                     name2 = name_all[id2]
                     if name1 != name2 and (name1, name2) in (E1 | E2 | E3 | E4 | E5 | E6 | E7 | E8):
                         m.addConstr(
@@ -348,18 +348,20 @@ class VRPSolver:
             raise ValueError("No constraints were added to the model")
         self.sol_logger.debug(f"Total constraints added: {constraint_count}")
 
-        # Solve the subproblem
-        m.setObjective(gp.quicksum(t_completion[k] for k in range(uav_num)) * config.Model.TIME_UNIT_COST
-                       + t_latest * config.Model.TIME_UNIT_COST,
+        # Solve the c c c subproblem
+        # m.setObjective(gp.quicksum(t_completion[k] for k in range(uav_num)) * config.Model.TIME_UNIT_COST
+        #                + t_latest * config.Model.TIME_UNIT_COST,
+        #                sense=GRB.MINIMIZE)
+        m.setObjective(gp.quicksum(t_completion[k] for k in range(uav_num)) * config.Model.TIME_UNIT_COST,
                        sense=GRB.MINIMIZE)
 
 
         m.setParam(GRB.param.OutputFlag, 1)
-        # m.setParam(GRB.param.ImproveStartTime, 600)         # adopt a strategy that gives up on moving the best bound
+        m.setParam(GRB.param.LogFile, self.log_file_path)
+        # m.setParam(GRB.param.ImproveStartTime, 50)         # adopt a strategy that gives up on moving the best bound
                                                             # and instead devotes all of its effort towards finding
                                                             # better feasible solutions
         # m.setParam(GRB.param.)
-        m.setParam(GRB.param.LogFile, self.log_file_path)
         m.setParam(GRB.param.MIPFocus, 3)                   # Focus on finding objective bound more quickly
         m.optimize()
 
@@ -558,7 +560,7 @@ class VRPSolver:
         m_leaving, m_changed = mass_variables
         e_leaving, e_charged, e_consumed = energy_variables
 
-        filename = config.Path.HOME+ f'/output/two_stage_solution/iter {self.iter_count}_cs {cs_id}_scenario {scenario_id}.txt'
+        filename = config.Path.HOME+ f'/output/vrp_solution/iter {self.iter_count}_cs {cs_id}_scenario {scenario_id}.txt'
         with open(filename, 'w') as f:
             f.write(f'Charging station {cs_id} is assigned with {uav_num} uavs.\n')
             f.write("=" * 80 + "\n")

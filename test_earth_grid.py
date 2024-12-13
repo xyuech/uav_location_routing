@@ -24,7 +24,7 @@ if __name__ == "__main__":
 
     #Generate samples, reduced by k-means
     print("Monte Carlo simulation and scenario clustering results:")
-    clustered_scenarios = ds.simulate_scenarios(n_clusters=4, convergence_tol=0.005, max_samples=1000)
+    clustered_scenarios = ds.simulate_scenarios(n_clusters=3, convergence_tol=0.005, max_samples=1000)
 
     # ds.simulate_scenarios()
     ds.visualize_single_scenarios(clustered_scenarios[0])

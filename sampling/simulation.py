@@ -221,7 +221,7 @@ class DeliveryScenario:
         return demands, feature
 
     def simulate_scenarios(self,
-                           n_clusters: int = 4,
+                           n_clusters: int = 3,
                            convergence_tol: float = 0.005,
                            max_samples: int = 1000) -> List[List]:
         """
@@ -275,22 +275,22 @@ class DeliveryScenario:
             )
             # print(demand_ls[i])
 
-        for j in range(5):
-            top_index = feature_ls.index(
-                max(feature_ls, key=lambda x: x[j])
+        task_volume_index = 1           # task_volume is the 2nd column in feature_array
+        top_index = feature_ls.index(
+            max(feature_ls, key=lambda x: x[task_volume_index])
+        )
+        if top_index not in indices:
+            scenario_set.append(demand_ls[top_index])
+            self.all_locations.update(
+               [d['location'] for d in demand_ls[top_index]]
             )
-            if top_index not in indices:
-                scenario_set.append(demand_ls[top_index])
-                self.all_locations.update(
-                   [d['location'] for d in demand_ls[top_index]]
-                )
-            # print(feature_ls[top_index])
+        # print(feature_ls[top_index])
 
         return scenario_set
 
 
 
-    def visualize_scenarios(self, scenario: Dict=None):
+    def visualize_scenarios(self, scenario: Dict=None, scenario_id=None):
         '''
         Visualize single scenario
         param: scenario (optional) represents a single scenario in the representative set
@@ -370,7 +370,7 @@ class DeliveryScenario:
 
         plt.legend()
         plt.grid(visible="True", which="major")
-        plt.savefig(config.Path.HOME+'/output/grid.png')
+        plt.savefig(config.Path.HOME+f'/output/scenario_{scenario_id}.png')
         return
 
 
@@ -385,8 +385,8 @@ if __name__ == "__main__":
 
     print("Monte Carlo simulation and scenario clustering results:")
     # Generate samples, reduced by k-means
-    clustered_scenarios = ds.simulate_scenarios(n_clusters=4, convergence_tol=0.005, max_samples=1000)
+    clustered_scenarios = ds.simulate_scenarios(n_clusters=3, convergence_tol=0.005, max_samples=1000)
 
     # ds.simulate_scenarios()
-    ds.visualize_single_scenarios(ds.clustered_scenarios[0])
-    ds.visualize_single_scenarios(ds.clustered_scenarios[1])
+    ds.visualize_scenarios(ds.clustered_scenarios[-1], scenario_id=4)
+    ds.visualize_scenarios(ds.clustered_scenarios[0], scenario_id=1)

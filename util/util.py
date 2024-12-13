@@ -39,11 +39,22 @@ def calculate_distance_on_earth(
     long1, lat1 = coord1_arr[:, [0, 1]].T
     long2, lat2 = coord2_arr[:, [0, 1]].T
 
-    # haversine formula
-    distances = phys.EARTH_RADIUS * np.arccos(
-        np.cos(lat1) * np.cos(lat2) * np.cos(long1 - long2) +
-        np.sin(lat1) * np.sin(lat2)
-    )
+    # Calculate cosine of central angle
+    cos_central_angle = (np.cos(lat1) * np.cos(lat2) * np.cos(long1 - long2) +
+                         np.sin(lat1) * np.sin(lat2))
+
+    # Clip values to handle numerical precision issues
+    cos_central_angle = np.clip(cos_central_angle, -1.0, 1.0)
+
+    # Handle identical points (where cos_central_angle ≈ 1)
+    is_same_point = np.isclose(cos_central_angle, 1.0, rtol=1e-10)
+
+    # Calculate distances where points are different
+    distances = np.zeros_like(cos_central_angle)
+    different_points = ~is_same_point
+    distances[different_points] = phys.EARTH_RADIUS * np.arccos(cos_central_angle[different_points])
+
+
     distances.flatten()
     distances = np.nan_to_num(distances, 0)
 
